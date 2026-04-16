@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Downloader Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+      body {
+        font-family: system-ui;
+      }
+    </style>
+  </head>
+
+  <body
+    class="bg-gradient-to-br from-gray-100 to-gray-200 min-h-screen flex items-center justify-center"
+  >
+    <div class="bg-white w-full max-w-3xl rounded-2xl shadow-2xl p-6 space-y-6">
+      <h1 class="text-3xl font-bold text-center">🎬 Downloader Pro</h1>
+
+      <p class="text-center text-gray-500">
+        Download videos or audio in MP3/MP4
+      </p>
+
+      <!-- URL -->
+      <div id="urlSection" class="flex gap-2">
+        <input
+          id="urlInput"
+          class="border p-3 w-full rounded-lg"
+          placeholder="Paste video URL..."
+        />
+
+        <button id="getFormatsBtn" class="bg-black text-white px-4 rounded-lg duration-200 hover:scale-105">
+          Get Formats
+        </button>
+      </div>
+
+      <!-- TYPE -->
+      <div class="flex justify-center gap-4">
+        <button
+          id="videoBtn"
+          class="px-4 py-2 rounded-lg bg-gray-900 text-white transition-all duration-200 hover:scale-105""
+        >
+          Video (MP4)
+        </button>
+
+        <button id="audioBtn" class="px-4 py-2 rounded-lg bg-gray-200 transition-all duration-200 hover:scale-105"">
+          Audio (MP3)
+        </button>
+      </div>
+
+      <!-- LOADING -->
+      <div id="loading" class="text-center text-gray-500 hidden">
+        Loading formats...
+      </div>
+
+      <!-- FORMATS -->
+      <div id="formats" class="space-y-3"></div>
+
+      <!-- DOWNLOAD -->
+      <button
+        id="downloadBtn"
+        class="hidden w-full bg-green-600 text-white p-3 rounded-lg duration-300 hover:scale-105"
+      >
+        Download Selected
+      </button>
+
+      <!-- PROGRESS -->
+      <div
+        id="progressContainer"
+        class="hidden w-full bg-gray-200 rounded-full h-4"
+      >
+        <div
+          id="progressBar"
+          class="bg-green-500 h-4 rounded-full"
+          style="width: 0%"
+        ></div>
+      </div>
+
+      <div id="percentText" class="text-center text-sm text-gray-600"></div>
+
+      <!-- RESULT -->
+      <div id="result" class="text-center text-green-600 font-medium"></div>
+    </div>
+
+    <script>
+      const API_BASE = "http://localhost:8000";
+
+      let selected = null;
+      let url = "";
+      let type = "VID";
+      let jobId = null;
+      let progressInterval = null;
+      let mode = "video"; // video | audio
+
+      // عناصر
+      const urlSection = document.getElementById("urlSection");
+      const urlInput = document.getElementById("urlInput");
+      const formatsDiv = document.getElementById("formats");
+      const loading = document.getElementById("loading");
+      const downloadBtn = document.getElementById("downloadBtn");
+      const result = document.getElementById("result");
+
+      const progressContainer = document.getElementById("progressContainer");
+      const progressBar = document.getElementById("progressBar");
+      const percentText = document.getElementById("percentText");
+
+      const getFormatsBtn = document.getElementById("getFormatsBtn");
+
+      const videoBtn = document.getElementById("videoBtn");
+      const audioBtn = document.getElementById("audioBtn");
+
+      // ================= RESET =================
+      function resetProgressUI() {
+        progressContainer.classList.add("hidden");
+        progressBar.style.width = "0%";
+        percentText.innerText = "";
+
+        if (progressInterval) {
+          clearInterval(progressInterval);
+          progressInterval = null;
+        }
+
+        jobId = null;
+      }
+
+      // ================= SAFE UI SWITCH =================
+      function setMode(newMode) {
+        mode = newMode;
+        selected = null;
+
+        resetProgressUI();
+
+        if (mode === "audio") {
+          type = "Mp3";
+
+          // ❗ نخفي فقط بدون تدمير الحالة
+          formatsDiv.style.display = "none";
+          getFormatsBtn.style.display = "none";
+          loading.classList.add("hidden");
+
+          downloadBtn.classList.remove("hidden");
+        }
+
+        if (mode === "video") {
+          type = "VID";
+
+          // ❗ نعيد كل شيء بشكل آمن
+          formatsDiv.style.display = "block";
+          getFormatsBtn.style.display = "block";
+
+          downloadBtn.classList.add("hidden");
+        }
+      }
+
+      // ================= BUTTONS =================
+      document.getElementById("videoBtn").onclick = () => {
+        setMode("video");
+        setActiveButton("video");
+      };
+
+      document.getElementById("audioBtn").onclick = () => {
+        setMode("audio");
+        setActiveButton("audio");
+      };
+
+      // ================= GET FORMATS =================
+      getFormatsBtn.onclick = async () => {
+        url = urlInput.value;
+        if (!url) return;
+
+        resetProgressUI();
+
+        loading.classList.remove("hidden");
+        formatsDiv.innerHTML = "";
+        formatsDiv.style.display = "block";
+
+        const res = await fetch(`${API_BASE}/jobs/get_formats/`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url, type }),
+        });
+
+        const data = await res.json();
+        loading.classList.add("hidden");
+
+        (data.formats || []).forEach((f) => {
+          const div = document.createElement("div");
+
+          div.className =
+            "p-3 border rounded-xl flex justify-between cursor-pointer hover:bg-gray-100";
+
+          div.innerHTML = `
+      <span>${f.resolution || "Audio"}</span>
+      <span>${f.filesize ? f.filesize + " MB" : "unknown"}</span>
+    `;
+
+          div.onclick = () => {
+            selected = f.format_id;
+
+            // 🔴 reset all formats
+            document.querySelectorAll("#formats div").forEach(el => {
+              el.classList.remove("bg-black", "text-white");
+              el.classList.add("bg-white", "text-black");
+              el.classList.remove("scale-[1.02]", "shadow-md", "pointer-events-none");
+            });
+          
+            // 🟢 activate selected
+            div.classList.remove("bg-white", "text-black");
+            div.classList.add("bg-black", "text-white");
+            div.classList.add("scale-[1.02]", "shadow-md");
+            div.classList.add("pointer-events-none");
+            downloadBtn.classList.remove("hidden");
+          };
+
+          formatsDiv.appendChild(div);
+        });
+      };
+
+      // ================= PROGRESS =================
+      function trackProgress(jobId) {
+        resetProgressUI();
+        progressContainer.classList.remove("hidden");
+
+        progressInterval = setInterval(async () => {
+          const res = await fetch(`${API_BASE}/jobs/progress/${jobId}/`);
+          const data = await res.json();
+
+          const percent = data.percent;
+          const speed = data.speed || "";
+          const downloaded = data.downloaded || "";
+
+          if (percent && percent.includes("%")) {
+            progressBar.style.width = percent;
+            percentText.innerText = percent;
+          } else {
+            percentText.innerText = `Downloading...\n${downloaded} | ${speed}`;
+          }
+
+          if (percent === "100%") {
+            clearInterval(progressInterval);
+            percentText.innerText = "✅ Completed";
+            progressBar.style.width = "100%";
+          }
+        }, 1000);
+      }
+
+      // ================= CREATE JOB =================
+      downloadBtn.onclick = async () => {
+        const body = { url, type };
+
+        if (type === "VID" && selected) {
+          body.format_id = selected;
+        }
+
+        const res = await fetch(`${API_BASE}/jobs/create/`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+        const data = await res.json();
+
+        jobId = data.id;
+
+        result.innerHTML = `✅ Job Created: <b>${jobId}</b>`;
+
+        trackProgress(jobId);
+      };
+
+      // ================= TOGGLE COLORS MP3/MP4 =================
+      function setActiveButton(active) {
+        videoBtn.classList.remove("bg-gray-900", "text-white");
+        videoBtn.classList.add("bg-gray-200", "text-black", "border");
+
+        audioBtn.classList.remove("bg-gray-900", "text-white");
+        audioBtn.classList.add("bg-gray-200", "text-black", "border");
+
+        if (active === "video") {
+          videoBtn.classList.add("bg-gray-900", "text-white");
+          videoBtn.classList.remove("bg-gray-200", "text-black", "border");
+        }
+      
+        if (active === "audio") {
+          audioBtn.classList.add("bg-gray-900", "text-white");
+          audioBtn.classList.remove("bg-gray-200", "text-black", "border");
+        }
+      }
+    </script>
+  </body>
+</html>
