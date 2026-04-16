@@ -61,6 +61,7 @@ BASE_OPTS = {
     "js_runtimes": {
         "node": {},
     },
+    'yes_playlist': True,
 }
 
 def safe_filename(name):

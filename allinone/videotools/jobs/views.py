@@ -7,6 +7,7 @@ from .serializer import JobSerializer
 from .task import process_job
 from videodownloader.chooseresolution import simplify_formats
 from videodownloader.redis import ProgressStore
+from allinone.videotools.videodownloader.playlistinfo import get_playlist_details
 
 # Create your views here.
 
@@ -31,12 +32,17 @@ class GetFormats(APIView):
         url = request.data.get('url')
         if not url:
             return Response({"error": "url is required"}, status=400)
-
-        dict = simplify_formats(url)
-        real_url = dict.get('url')
-        formats = dict.get('formats')
-        if real_url:
-            url = real_url
+        if 'list=' in url:
+            # نستخدم الدالة الجديدة للقوائم
+            result = get_playlist_details(url)
+            url = result.get("url")
+            formats = result.get('formats')
+        else:
+            dict = simplify_formats(url)
+            real_url = dict.get('url')
+            formats = dict.get('formats')
+            if real_url:
+                url = real_url
         return Response({
                 "url":url,
                 "formats":formats
