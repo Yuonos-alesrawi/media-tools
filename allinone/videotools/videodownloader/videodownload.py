@@ -3,8 +3,9 @@ from videodownloader.geturl import capture_video
 from yt_dlp.utils import UnsupportedError, DownloadError
 from pathlib import Path
 import asyncio
-import  re
-from .redis import ProgressStore
+import re
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 
 DOWNLOAD_PATH = Path.home() / "Downloads"
 DOWNLOAD_FOLDER = DOWNLOAD_PATH/'Videos'
@@ -18,6 +19,8 @@ COMMON_HEADERS = {
 }
 
 def make_progress_hook(job_id):
+    channel_layer = get_channel_layer()
+    group_name = f'progress_{job_id}'
     def progress_hook(d):
         if d['status'] == 'downloading':
 
@@ -29,20 +32,33 @@ def make_progress_hook(job_id):
             if not percent or percent.strip() == '' or percent.strip() == '0.0%':
                 percent = None  
 
-            ProgressStore.set(job_id, {
+            data = {
                 "percent": percent,
                 "speed": speed,
                 "eta": eta,
                 "downloaded": downloaded,
-            })
+            }
+            async_to_sync(channel_layer.group_send)(
+                group_name,
+                {
+                    'type': 'send_progress',
+                    'data': data
+                }
+            )
 
         elif d['status'] == 'finished':
-            ProgressStore.set(job_id, {
-                "percent": "100%",
-                "speed": "",
-                "eta": "Done",
-                "downloaded": ""
-            })
+            async_to_sync(channel_layer.group_send)(
+                group_name,
+                {
+                    "type": "send_progress",
+                    "data": {
+                        "percent": "100%",
+                        "speed": "",
+                        "eta": "Done",
+                        "downloaded": ""
+                    }
+                }
+            )
 
     return progress_hook
 
@@ -108,7 +124,8 @@ def smart_download(job, format_id=None):
         if real_url:
             ydl_opts.update({
                 "http-headers":
-                             {'User-Agent': user_agent
+                            {
+                                'User-Agent': user_agent
                         },
                     })
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:

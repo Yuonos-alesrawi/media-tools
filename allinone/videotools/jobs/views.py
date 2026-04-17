@@ -1,4 +1,3 @@
-from django.http import JsonResponse
 from django.shortcuts import render, get_object_or_404
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -6,8 +5,7 @@ from .models import Jobs
 from .serializer import JobSerializer
 from .task import process_job
 from videodownloader.chooseresolution import simplify_formats
-from videodownloader.redis import ProgressStore
-from allinone.videotools.videodownloader.playlistinfo import get_playlist_details
+from videodownloader.playlistinfo import get_playlist_details
 
 # Create your views here.
 
@@ -53,7 +51,3 @@ class GetJob(APIView):
         job = get_object_or_404(Jobs, id=id)
         serializer = JobSerializer(job)
         return Response(serializer.data)
-
-def get_progress(request, job_id):
-    data = ProgressStore.get(job_id)
-    return JsonResponse(data)

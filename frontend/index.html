@@ -221,29 +221,28 @@
       function trackProgress(jobId) {
         resetProgressUI();
         progressContainer.classList.remove("hidden");
+        const ws = new WebSocket(`ws://localhost:8000/ws/progress/${jobId}/`);
 
-        progressInterval = setInterval(async () => {
-          const res = await fetch(`${API_BASE}/jobs/progress/${jobId}/`);
-          const data = await res.json();
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            const percent = data.percent;
+            const speed = data.speed || "";
+            const downloaded = data.downloaded || "";
 
-          const percent = data.percent;
-          const speed = data.speed || "";
-          const downloaded = data.downloaded || "";
+            if (percent && percent.includes("%")) {
+              progressBar.style.width = percent;
+              percentText.innerText = percent;
+            } else {
+              percentText.innerText = `Downloading...\n${downloaded} | ${speed}`;
+            }
 
-          if (percent && percent.includes("%")) {
-            progressBar.style.width = percent;
-            percentText.innerText = percent;
-          } else {
-            percentText.innerText = `Downloading...\n${downloaded} | ${speed}`;
-          }
-
-          if (percent === "100%") {
-            clearInterval(progressInterval);
-            percentText.innerText = "✅ Completed";
-            progressBar.style.width = "100%";
-          }
-        }, 1000);
-      }
+            if (percent === "100%") {
+              clearInterval(progressInterval);
+              percentText.innerText = "✅ Completed";
+              progressBar.style.width = "100%";
+            }
+          };
+        }
 
       // ================= CREATE JOB =================
       downloadBtn.onclick = async () => {
