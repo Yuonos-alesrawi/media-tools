@@ -1,4 +1,4 @@
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from .models import Jobs
@@ -17,6 +17,7 @@ class CreateJob(APIView):
 
         if not url or not job_type:
             return Response({"error": "url and type are required"}, status=400)
+        
         job = Jobs.objects.create(
             url = url,
             job_type = job_type,
@@ -25,7 +26,7 @@ class CreateJob(APIView):
         process_job.delay(job.id)
         return Response({'id':job.id})
 
-class GetFormats(APIView):
+class FormatsView(APIView):
     def post(self,request):
         url = request.data.get('url')
         if not url:
