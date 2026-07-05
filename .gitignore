@@ -11,5 +11,6 @@ venv/
 **/cookies.txt
 **/cookies/*.json
 .env
+AGENTS.md
 
 # لا تنسَ حذف requirements.txt من هنا إذا كنت تريد رفعه (وهو الأفضل)

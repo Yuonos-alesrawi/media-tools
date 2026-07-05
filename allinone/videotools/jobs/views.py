@@ -1,51 +1,45 @@
 from django.shortcuts import get_object_or_404
-from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.views import APIView
+
 from .models import Jobs
 from .serializer import JobSerializer
+from .services.job_service import JobService
 from .task import process_job
-from videodownloader.chooseresolution import simplify_formats
-from videodownloader.playlistinfo import get_playlist_details
 
-# Create your views here.
 
 class CreateJob(APIView):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.job_service = JobService()
+
     def post(self, request):
-        url = request.data.get('url')
-        job_type = request.data.get('type')
-        format_id = request.data.get('format_id')
+        url = request.data.get("url")
+        job_type = request.data.get("type")
+        format_id = request.data.get("format_id")
 
         if not url or not job_type:
             return Response({"error": "url and type are required"}, status=400)
-        
-        job = Jobs.objects.create(
-            url = url,
-            job_type = job_type,
-            selected_format_id = format_id,
-        )
+
+        job = self.job_service.create_job(url, job_type, format_id)
         process_job.delay(job.id)
-        return Response({'id':job.id})
+        return Response({"id": job.id})
+
 
 class FormatsView(APIView):
-    def post(self,request):
-        url = request.data.get('url')
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.job_service = JobService()
+
+    def post(self, request):
+        url = request.data.get("url")
         if not url:
             return Response({"error": "url is required"}, status=400)
-        if 'list=' in url:
-            # نستخدم الدالة الجديدة للقوائم
-            result = get_playlist_details(url)
-            url = result.get("url")
-            formats = result.get('formats')
-        else:
-            dict = simplify_formats(url)
-            real_url = dict.get('url')
-            formats = dict.get('formats')
-            if real_url:
-                url = real_url
-        return Response({
-                "url":url,
-                "formats":formats
-            })
+
+        result = self.job_service.get_formats(url)
+        resolved_url = result.get("url") or url
+        return Response({"url": resolved_url, "formats": result.get("formats")})
+
 
 class GetJob(APIView):
     def get(self, request, id):

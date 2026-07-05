@@ -4,10 +4,10 @@ import json
 class ProgressConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.job_id = self.scope['url_route']['kwargs']['job_id']
-        self.groub_name = f'progress_{self.job_id}'
+        self.group_name = f'progress_{self.job_id}'
 
         await self.channel_layer.group_add(
-            self.groub_name,
+            self.group_name,
             self.channel_name
         )
 
@@ -15,7 +15,7 @@ class ProgressConsumer(AsyncWebsocketConsumer):
 
     async def disconnect(self, code):
         await self.channel_layer.group_discard(
-            self.groub_name,
+            self.group_name,
             self.channel_name
         )
     
