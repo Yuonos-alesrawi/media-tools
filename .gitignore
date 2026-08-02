@@ -1,16 +1,45 @@
-# تجاهل كل مجلدات الكاش في أي مكان في المشروع
-**/__pycache__/
+# Python
+__pycache__/
 *.pyc
-
-# تجاهل البيئة الافتراضية
-allinone/venv/
+*.pyo
+*.egg-info/
+.venv/
 venv/
 
-# تجاهل قاعدة البيانات وملفات الكوكيز والحسابات
-**/db.sqlite3
+# Django
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# البيانات الفعلية (مهم جداً لمشروعك)
+/data/
+/backend/videotools/data/
+
+# ملفات حساسة
+.env
+.env.local
+*.pem
+*.key
+
+# Cookies (شفتها في بنية مشروعك، دي حساسة جداً!)
 **/cookies.txt
 **/cookies/*.json
-.env
-AGENTS.md
 
-# لا تنسَ حذف requirements.txt من هنا إذا كنت تريد رفعه (وهو الأفضل)
+# Static files المجمّعة
+staticfiles/
+static_root/
+
+# Playwright browsers (لو بتتحمل جوه المشروع بدل مكان منفصل)
+.playwright-browsers/
+
+# IDE
+.vscode/
+.idea/
+
+# نظام التشغيل
+.DS_Store
+Thumbs.db
+
+# Docker (اختياري، حسب تفضيلك)
+docker-compose.override.yml
