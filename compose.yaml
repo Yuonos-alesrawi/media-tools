@@ -1,0 +1,54 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+  backend:
+    build: ./backend
+    image: media-tools-backend:v1.0
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=True
+      - DATABASE_URL=sqlite:///app/data/db.sqlite
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./data:/app/videotools/data
+      - ./backend:/app
+    depends_on:
+      - redis
+    restart: unless-stopped
+  frontend:
+    build: ./frontend
+    image: media-tools-frontend:v1.0
+    ports:
+      - "3000:80"
+    restart: unless-stopped
+  celery_worker:
+    build: ./backend
+    command: celery -A videotools worker --loglevel=info
+    environment: 
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - redis
+      - backend
+    restart: unless-stopped
+
+  celery_beat:
+    build: ./backend
+    command: celery -A videotools beat --loglevel=info
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+      - backend
+    volumes:
+      - ./backend:/app
+    restart: unless-stopped
+  
+      
+    
+
