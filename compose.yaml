@@ -1,8 +1,6 @@
 services:
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
     restart: unless-stopped
   backend:
     build: ./backend
@@ -10,9 +8,8 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DEBUG=True
-      - DATABASE_URL=sqlite:///app/data/db.sqlite
       - REDIS_URL=redis://redis:6379/0
+    env_file: .env
     volumes:
       - ./data:/app/videotools/data
       - ./backend:/app
@@ -30,6 +27,7 @@ services:
     command: celery -A videotools worker --loglevel=info
     environment: 
       - REDIS_URL=redis://redis:6379/0
+    env_file: .env
     volumes:
       - ./backend:/app
     depends_on:
@@ -42,6 +40,7 @@ services:
     command: celery -A videotools beat --loglevel=info
     environment:
       - REDIS_URL=redis://redis:6379/0
+    env_file: .env
     depends_on:
       - redis
       - backend
