@@ -48,3 +48,5 @@ AGENTS.md
 README.Docker.md
 
 Downloads/
+
+celerybeat-schedule*
