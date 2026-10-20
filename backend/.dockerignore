@@ -23,5 +23,7 @@
 **/*.log
 **/secrets.dev.yaml
 **/values.dev.yaml
+**/cookies.txt
+**/cookies/*.json
 LICENSE
 README.md

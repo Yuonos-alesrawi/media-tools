@@ -43,3 +43,8 @@ Thumbs.db
 
 # Docker (اختياري، حسب تفضيلك)
 docker-compose.override.yml
+
+AGENTS.md
+README.Docker.md
+
+Downloads/
