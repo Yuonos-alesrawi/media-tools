@@ -32,70 +32,75 @@ videotools/
 │       └── job_service.py      # Core rules and processing logic
 └── staticfiles/                # Collected static assets
 ```
-🧩 Key Components:
-Model (models.py): Defines the Job schema to track video requests (URL, current status, detected website/platform name, selected quality/format IDs, and error tracking).
 
-Repository Pattern (repositories/): Encapsulates database queries to decouple data persistence from domain logic.
+### 🧩 Key Components:
+1. **Model (`models.py`)**: Defines the `Job` schema to track video requests (URL, current status, detected website/platform name, selected quality/format IDs, and error tracking).
+2. **Repository Pattern (`repositories/`)**: Encapsulates database queries to decouple data persistence from domain logic.
+3. **Service Layer (`services/`)**: Implements business validation, payload processing, and job queuing logic.
+4. **Celery Tasks (`task.py`)**: Executes long-running and resource-intensive media retrieval tasks asynchronously in background worker processes.
 
-Service Layer (services/): Implements business validation, payload processing, and job queuing logic.
+---
 
-Celery Tasks (task.py): Executes long-running and resource-intensive media retrieval tasks asynchronously in background worker processes.
+## 🛠️ Tech Stack
 
-🛠️ Tech Stack
-Language: Python 3.x
+* **Language**: Python 3.x
+* **Web Framework**: Django & Django REST Framework (DRF)
+* **Task Queue & Scheduler**: Celery & Celery Beat
+* **Message Broker / Cache**: Redis
+* **Containerization**: Docker & Docker Compose
+* **Media Handling**: `yt-dlp` / Media Download Helpers
+* **Database**: SQLite / PostgreSQL
 
-Web Framework: Django & Django REST Framework (DRF)
+---
 
-Task Queue & Scheduler: Celery & Celery Beat
+## 🐳 Running with Docker (Recommended)
 
-Message Broker / Cache: Redis
+The easiest way to run the entire stack (Django Web App, Redis, Celery Worker, and Celery Beat) is using **Docker Compose**.
 
-Containerization: Docker & Docker Compose
+### Prerequisites
+* [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running.
 
-Media Handling: yt-dlp / Media Download Helpers
-
-Database: SQLite / PostgreSQL
-
-🐳 Running with Docker (Recommended)
-The easiest way to run the entire stack (Django Web App, Redis, Celery Worker, and Celery Beat) is using Docker Compose.
-
-Prerequisites
-Docker Desktop installed and running.
-
-1. Build and Start Services
+### 1. Build and Start Services
 Run the following command in the project root directory:
-
-Bash
+```bash
 docker-compose up --build -d
+```
 This will build the Docker images and start all services in the background:
+* **Web Server**: `http://localhost:8000`
+* **Redis**: Internal broker service
+* **Celery Worker**: Background task processor
+* **Celery Beat**: Periodic task scheduler
 
-Web Server: http://localhost:8000
-
-Redis: Internal broker service
-
-Celery Worker: Background task processor
-
-Celery Beat: Periodic task scheduler
-
-2. Run Database Migrations Inside Container
-Bash
+### 2. Run Database Migrations Inside Container
+```bash
 docker-compose exec web python manage.py migrate
-3. Create Superuser (Admin)
-Bash
+```
+
+### 3. Create Superuser (Admin)
+```bash
 docker-compose exec web python manage.py createsuperuser
-4. View Logs
-Bash
+```
+
+### 4. View Logs
+```bash
 # View logs for all services
 docker-compose logs -f
 
 # View logs for a specific service (e.g., celery worker)
 docker-compose logs -f celery_worker
-5. Stop the Containers
-Bash
+```
+
+### 5. Stop the Containers
+```bash
 docker-compose down
-💻 Manual Setup & Installation (Without Docker)
-1. Clone the Repository & Setup Virtual Environment
-Bash
+```
+
+---
+
+## 💻 Manual Setup & Installation (Without Docker)
+
+### 1. Clone the Repository & Setup Virtual Environment
+```bash
 # Navigate to the project directory
 cd videotools
 
@@ -107,42 +112,53 @@ python -m venv venv
 source venv/bin/activate
 # On Windows:
 # venv\Scripts\activate
-2. Install Dependencies
-Bash
+```
+
+### 2. Install Dependencies
+```bash
 pip install -r requirements.txt
-3. Run Database Migrations & Create Superuser
-Bash
+```
+
+### 3. Run Database Migrations & Create Superuser
+```bash
 python manage.py makemigrations
 python manage.py migrate
 python manage.py createsuperuser
-4. Run the Services Separately
-Start Redis Server:
+```
 
-Bash
-redis-server
-Start Django Web Server:
+### 4. Run the Services Separately
+* **Start Redis Server**:
+  ```bash
+  redis-server
+  ```
+* **Start Django Web Server**:
+  ```bash
+  python manage.py runserver
+  ```
+* **Start Celery Worker**:
+  ```bash
+  celery -A videotools worker -l info
+  ```
+* **Start Celery Beat**:
+  ```bash
+  celery -A videotools beat -l info
+  ```
 
-Bash
-python manage.py runserver
-Start Celery Worker:
+---
 
-Bash
-celery -A videotools worker -l info
-Start Celery Beat:
+## 💻 Workflow & Usage
 
-Bash
-celery -A videotools beat -l info
-💻 Workflow & Usage
-Submit a Download Job:
-Send a POST request with the video URL to the jobs API endpoint.
+1. **Submit a Download Job**:
+   Send a `POST` request with the video URL to the jobs API endpoint.
+2. **Background Processing**:
+   The job is recorded with an initial state (`PENDING` or `PROCESSING`), and the processing task is dispatched to **Celery**.
+3. **Fetch Status & Results**:
+   Query the job status endpoint (`GET`) to check whether processing is completed (`COMPLETED`) or failed (`FAILED`), and retrieve available media formats or output details.
 
-Background Processing:
-The job is recorded with an initial state (PENDING or PROCESSING), and the processing task is dispatched to Celery.
+---
 
-Fetch Status & Results:
-Query the job status endpoint (GET) to check whether processing is completed (COMPLETED) or failed (FAILED), and retrieve available media formats or output details.
+## 🛠️ Management & Administration
 
-🛠️ Management & Administration
-Django Admin:
-Manage all job records and database entries directly via:
-http://localhost:8000/admin/
+* **Django Admin**:
+  Manage all job records and database entries directly via:
+  `http://localhost:8000/admin/`
