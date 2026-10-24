@@ -1,164 +1,104 @@
-# 📹 Video Tools (`videotools`)
+# Media Tools
 
-**Video Tools** is a web application and background task management system built with **Django** and **Django REST Framework (DRF)**. It leverages **Celery** and **Redis** for asynchronous task execution, such as extracting metadata, handling video downloading streams, and processing media tasks without blocking the main web application thread.
+A web application and background-job system for downloading videos and audio in the quality you choose, built with **Django**, **Django REST Framework**, **Celery** and **Redis**.
 
----
+**Why I built it:** my internet connection is weak and unreliable, and I wanted to watch courses and videos offline. Downloads run in background workers so the web server never blocks, and progress is pushed live over WebSockets.
 
-## 📐 Architecture & Design Patterns
+> **Responsible use:** this tool is for downloading content you have the right to access. Respect the terms of the sites you use and the rights of the content owners.
 
-The project follows a modular, multi-layered architecture separating data persistence, business logic, and background processing:
+## Features
+- Submit a download job with a URL, a type and a quality/format, and check its status.
+- List the available formats for a URL before downloading.
+- Asynchronous processing with Celery and Redis; live progress via Django Channels.
+- Jobs move through the states `pending`, `processing`, `done` and `error`; failed jobs keep their error message.
+- Django admin for browsing and managing jobs.
+- Docker Compose stack: backend, Redis, Celery worker, Celery Beat and a simple front-end.
+
+## Architecture
 
 ```text
-videotools/
-├── manage.py                   # Django management CLI script
-├── Dockerfile                  # Docker container definition
-├── docker-compose.yml          # Multi-container service orchestration
-├── .dockerignore               # Files excluded from Docker context
-├── videotools/                 # Core project configuration module
-│   ├── __init__.py
-│   ├── settings.py             # Global settings, Celery & Redis configs
-│   ├── urls.py                 # Root URL routing
-│   ├── wsgi.py / asgi.py       # WSGI/ASGI entrypoints
-│   └── celerybeat-schedule     # Local Celery Beat schedule database
-├── jobs/                       # Main app for managing media download jobs
-│   ├── models.py               # Database schema (Job entity)
-│   ├── views.py                # REST API views / endpoints
-│   ├── urls.py                 # Application route definitions
-│   ├── serializer.py           # DRF Serializers for JSON parsing/validation
-│   ├── task.py                 # Asynchronous background tasks managed by Celery
-│   ├── repositories/           # Data Access Layer
-│   │   └── job_repository.py   # Direct database operations & queries
-│   └── services/               # Business Logic Layer
-│       └── job_service.py      # Core rules and processing logic
-└── staticfiles/                # Collected static assets
+mediatool/
+├── docker-compose.yml
+├── .env.example               # copy to .env and fill in
+├── frontend/                  # simple web interface
+└── backend/
+    ├── Dockerfile
+    ├── entrypoint.sh
+    ├── requirements.txt
+    └── videotools/
+        ├── manage.py
+        ├── videotools/        # settings, URLs, Celery app
+        ├── jobs/              # jobs app
+        │   ├── models.py          # Jobs entity
+        │   ├── views.py           # REST API views
+        │   ├── serializer.py
+        │   ├── task.py            # Celery tasks
+        │   ├── repositories/      # data access layer
+        │   ├── services/          # business logic layer
+        │   └── tests.py           # unit and API tests
+        └── videodownloader/   # download and format services (yt-dlp)
 ```
 
-### 🧩 Key Components:
-1. **Model (`models.py`)**: Defines the `Job` schema to track video requests (URL, current status, detected website/platform name, selected quality/format IDs, and error tracking).
-2. **Repository Pattern (`repositories/`)**: Encapsulates database queries to decouple data persistence from domain logic.
-3. **Service Layer (`services/`)**: Implements business validation, payload processing, and job queuing logic.
-4. **Celery Tasks (`task.py`)**: Executes long-running and resource-intensive media retrieval tasks asynchronously in background worker processes.
+The code is layered: **views** handle HTTP, **services** hold the business rules, **repositories** talk to the database, and **Celery tasks** run the long jobs. The services receive their dependencies through the constructor, which keeps them easy to test with mocks.
 
----
+## API
 
-## 🛠️ Tech Stack
+| Method | Endpoint | Body | Purpose |
+|---|---|---|---|
+| POST | `/jobs/create/` | `url`, `type` (`VID` or `Mp3`), optional `format_id` | Create a job and queue it |
+| GET | `/jobs/<id>/` | none | Get a job and its status |
+| POST | `/jobs/get_formats/` | `url` | List the available formats for a URL |
 
-* **Language**: Python 3.x
-* **Web Framework**: Django & Django REST Framework (DRF)
-* **Task Queue & Scheduler**: Celery & Celery Beat
-* **Message Broker / Cache**: Redis
-* **Containerization**: Docker & Docker Compose
-* **Media Handling**: `yt-dlp` / Media Download Helpers
-* **Database**: SQLite / PostgreSQL
+## Configuration
 
----
+Settings are read from environment variables. Copy `.env.example` to `.env`:
 
-## 🐳 Running with Docker (Recommended)
+| Variable | Meaning |
+|---|---|
+| `DJANGO_SECRET_KEY` | Required. Generate one with `python -c "from django.core.management.utils import get_random_secret_key as g; print(g())"` |
+| `DJANGO_DEBUG` | `1` for development, `0` (default) otherwise |
+| `DJANGO_ALLOWED_HOSTS` | Comma-separated hosts, default `localhost,127.0.0.1` |
+| `REDIS_URL` | Broker URL, e.g. `redis://redis:6379/0` with Docker |
 
-The easiest way to run the entire stack (Django Web App, Redis, Celery Worker, and Celery Beat) is using **Docker Compose**.
+Never commit `.env`, cookie files or the database. They are listed in `.gitignore`.
 
-### Prerequisites
-* [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running.
+## Run with Docker (recommended)
 
-### 1. Build and Start Services
-Run the following command in the project root directory:
 ```bash
+cp .env.example .env          # then edit the values
 docker-compose up --build -d
-```
-This will build the Docker images and start all services in the background:
-* **Web Server**: `http://localhost:8000`
-* **Redis**: Internal broker service
-* **Celery Worker**: Background task processor
-* **Celery Beat**: Periodic task scheduler
-
-### 2. Run Database Migrations Inside Container
-```bash
-docker-compose exec web python manage.py migrate
+docker-compose exec backend python manage.py migrate
+docker-compose exec backend python manage.py createsuperuser
 ```
 
-### 3. Create Superuser (Admin)
+- Backend API and admin: http://localhost:8000 (admin at `/admin/`)
+- Front-end: http://localhost:3000
+- Logs: `docker-compose logs -f celery_worker`
+- Stop: `docker-compose down`
+
+## Run without Docker
+
 ```bash
-docker-compose exec web python manage.py createsuperuser
-```
-
-### 4. View Logs
-```bash
-# View logs for all services
-docker-compose logs -f
-
-# View logs for a specific service (e.g., celery worker)
-docker-compose logs -f celery_worker
-```
-
-### 5. Stop the Containers
-```bash
-docker-compose down
-```
-
----
-
-## 💻 Manual Setup & Installation (Without Docker)
-
-### 1. Clone the Repository & Setup Virtual Environment
-```bash
-# Navigate to the project directory
-cd videotools
-
-# Create a virtual environment
+cd backend/videotools
 python -m venv venv
-
-# Activate the virtual environment
-# On Linux/macOS:
-source venv/bin/activate
-# On Windows:
-# venv\Scripts\activate
-```
-
-### 2. Install Dependencies
-```bash
-pip install -r requirements.txt
-```
-
-### 3. Run Database Migrations & Create Superuser
-```bash
-python manage.py makemigrations
+venv\Scripts\activate          # Windows (use: source venv/bin/activate on Linux/macOS)
+pip install -r ../requirements.txt
+# set DJANGO_SECRET_KEY (or use a .env file), then:
 python manage.py migrate
-python manage.py createsuperuser
+redis-server                                   # terminal 1
+python manage.py runserver                     # terminal 2
+celery -A videotools worker -l info            # terminal 3
+celery -A videotools beat -l info              # terminal 4
 ```
 
-### 4. Run the Services Separately
-* **Start Redis Server**:
-  ```bash
-  redis-server
-  ```
-* **Start Django Web Server**:
-  ```bash
-  python manage.py runserver
-  ```
-* **Start Celery Worker**:
-  ```bash
-  celery -A videotools worker -l info
-  ```
-* **Start Celery Beat**:
-  ```bash
-  celery -A videotools beat -l info
-  ```
+## Tests
 
----
+```bash
+python manage.py test
+# or: docker-compose exec backend python manage.py test
+```
 
-## 💻 Workflow & Usage
+13 tests cover the model, the repository, the service layer and the API endpoints. Celery and the download services are mocked, so no Redis or internet is needed.
 
-1. **Submit a Download Job**:
-   Send a `POST` request with the video URL to the jobs API endpoint.
-2. **Background Processing**:
-   The job is recorded with an initial state (`PENDING` or `PROCESSING`), and the processing task is dispatched to **Celery**.
-3. **Fetch Status & Results**:
-   Query the job status endpoint (`GET`) to check whether processing is completed (`COMPLETED`) or failed (`FAILED`), and retrieve available media formats or output details.
-
----
-
-## 🛠️ Management & Administration
-
-* **Django Admin**:
-  Manage all job records and database entries directly via:
-  `http://localhost:8000/admin/`
+## Tech stack
+Python, Django, Django REST Framework, Celery, Celery Beat, Redis, Django Channels, yt-dlp, Docker, Docker Compose, SQLite.
